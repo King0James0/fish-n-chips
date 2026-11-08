@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+.DS_Store
+itch-build.zip
+
+itch-nightshift.zip
+.~lock.*#

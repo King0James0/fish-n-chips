@@ -1,0 +1,53 @@
+<!doctype html><html><head><meta charset=utf-8><style>body{margin:0;background:#02040c}canvas{display:block}</style></head>
+<body><div id=app></div>
+<script type="module">
+import * as PIXI from './vendor/pixi.mjs';
+window.__PIXI = PIXI;
+const R = window.__R = { boot:false, blur:false, rt:false, custom:false, err:{} };
+
+const frag = `precision mediump float; in vec2 vUV; out vec4 color;
+uniform sampler2D uTexture; uniform float uTime;
+void main(){ vec4 c = texture(uTexture, vUV);
+  vec2 p = vUV - 0.5; float v = 1.0 - dot(p,p)*0.9;
+  float scan = 0.9 + 0.1*sin(vUV.y*700.0 + uTime*4.0);
+  color = vec4(c.rgb * v * scan, c.a); }`;
+const vert = `precision mediump float; in vec3 aPosition; in vec2 aTextureCoord; out vec2 vUV;
+uniform mat4 uProjectionMatrix; uniform mat4 uFilterMatrix;
+void main(){ vUV = (uFilterMatrix * vec4(aTextureCoord,0.0,1.0)).xy; gl_Position = uProjectionMatrix * vec4(aPosition,1.0); }`;
+
+class MyFilter extends PIXI.Filter {
+  constructor(){
+    const glProgram = PIXI.GlProgram.from({ vertex: vert, fragment: frag, name: 'vignette-scan' });
+    super({ glProgram, resources: { vignetteUniforms: { uTime: { value: 0, type: 'f32' } } } });
+  }
+}
+
+async function main(){
+  const app = new PIXI.Application();
+  await app.init({ width:640, height:360, background:'#02040c', antialias:true });
+  document.getElementById('app').appendChild(app.canvas);
+  R.boot = true;
+  const g = new PIXI.Graphics();
+  g.circle(320,180,80).fill(0x2affd5); g.rect(120,120,120,120).fill(0xffd166);
+  app.stage.addChild(g);
+
+  // built-in blur filter
+  try { app.stage.filters = [ new PIXI.BlurFilter({ strength: 3 }) ]; await new Promise(r=>setTimeout(r,120)); R.blur = true; } catch(e){ R.err.blur = String(e); }
+
+  // RenderTexture additive bloom pipeline (the core of a Pixi glow)
+  try {
+    const rt = PIXI.RenderTexture.create({ width:640, height:360 });
+    const em = new PIXI.Container(); const b = new PIXI.Graphics().circle(320,180,60).fill(0x66ffe0);
+    em.addChild(b); app.stage.addChild(em);
+    app.renderer.render({ container: em, target: rt, clear: true });
+    const glow = new PIXI.Sprite(rt); glow.blendMode = 'add'; glow.alpha = 0.8; glow.filters = [ new PIXI.BlurFilter({ strength: 8 }) ];
+    app.stage.addChild(glow); await new Promise(r=>setTimeout(r,120)); R.rt = true;
+  } catch(e){ R.err.rt = String(e); }
+
+  // custom shader filter via canonical v8 API
+  try { const mf = new MyFilter(); app.stage.filters = [ mf ]; let t=0; app.ticker.add(()=>{ t+=0.016; mf.resources.vignetteUniforms.uTime.value = t; g.rotation = t*0.5; }); await new Promise(r=>setTimeout(r,200)); R.custom = true; } catch(e){ R.err.custom = String(e) + '\n' + (e.stack||''); }
+
+  window.__PIXI_READY = true;
+}
+main().catch(e=>{ window.__ERR = String(e) + '\n' + (e.stack||''); });
+</script></body></html>

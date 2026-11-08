@@ -1,0 +1,111 @@
+/* Fish N Chips — presentation layer */
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #01040c;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: none;
+  overscroll-behavior: none;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+#game {
+  display: block;
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  cursor: crosshair;
+}
+
+/* ---------- touch controls (mobile only) ---------- */
+#touch { display: none; }
+
+body.touch #touch {
+  display: block;
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.stick {
+  position: absolute;
+  left: max(18px, env(safe-area-inset-left));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  width: 132px;
+  height: 132px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 50% 50%, rgba(60,140,200,0.10), rgba(20,60,110,0.05) 70%);
+  border: 1px solid rgba(120,200,255,0.22);
+  box-shadow: 0 0 34px rgba(40,120,200,0.18) inset;
+  pointer-events: auto;
+  touch-action: none;
+}
+
+.knob {
+  position: absolute;
+  left: 50%; top: 50%;
+  width: 54px; height: 54px;
+  margin: -27px 0 0 -27px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, rgba(190,240,255,0.9), rgba(70,170,230,0.55) 60%, rgba(20,70,120,0.35));
+  box-shadow: 0 0 22px rgba(110,210,255,0.5);
+  transition: transform 0.06s linear;
+}
+
+.btns {
+  position: absolute;
+  right: max(18px, env(safe-area-inset-right));
+  bottom: max(22px, env(safe-area-inset-bottom));
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  pointer-events: auto;
+}
+
+.tb {
+  -webkit-appearance: none;
+  appearance: none;
+  border: 1px solid rgba(150,220,255,0.35);
+  background: rgba(30,80,130,0.20);
+  color: rgba(215,245,255,0.9);
+  font: 600 12px/1 ui-monospace, Menlo, monospace;
+  letter-spacing: 0.08em;
+  padding: 16px 18px;
+  border-radius: 999px;
+  backdrop-filter: blur(4px);
+  box-shadow: 0 0 18px rgba(60,160,240,0.18);
+  touch-action: none;
+  user-select: none;
+}
+
+.tb.big {
+  padding: 24px 26px;
+  font-size: 13px;
+  background: rgba(60,140,200,0.26);
+  border-color: rgba(190,240,255,0.5);
+}
+
+.tb:active {
+  background: rgba(120,210,255,0.42);
+  transform: scale(0.94);
+}
+
+/* ---------- fallbacks ---------- */
+.nojs {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: #cfe8ff;
+  background: #01040c;
+  font-size: 16px;
+  letter-spacing: 0.06em;
+}
+
+::selection { background: rgba(90,200,255,0.35); color: #fff; }
