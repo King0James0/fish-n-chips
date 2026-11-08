@@ -24,8 +24,9 @@ with sync_playwright() as p:
     b = p.chromium.launch(args=['--autoplay-policy=no-user-gesture-required'])
     pg = b.new_page(viewport={'width': 1280, 'height': 720})
     pg.on('pageerror', lambda e: errors.append(str(e)))
-    pg.goto('http://127.0.0.1:8141/index.html', wait_until='load')
-    pg.wait_for_timeout(1400)
+    pg.goto('http://127.0.0.1:8141/pixi.html', wait_until='load')
+    pg.wait_for_function('window.__pixi && window.__pixi.ready===true', timeout=25000)
+    pg.wait_for_timeout(800)
     pg.screenshot(path=f'{OUT}/shot_title.png')
 
     pg.keyboard.press('Enter'); pg.wait_for_timeout(900)

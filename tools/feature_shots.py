@@ -18,8 +18,9 @@ with sync_playwright() as p:
     b = p.chromium.launch(args=['--autoplay-policy=no-user-gesture-required'])
     pg = b.new_page(viewport={'width': 1280, 'height': 720})
     pg.on('pageerror', lambda e: errs.append(str(e)))
-    pg.goto('http://127.0.0.1:8139/index.html', wait_until='load')
-    pg.wait_for_timeout(1000)
+    pg.goto('http://127.0.0.1:8139/pixi.html', wait_until='load')
+    pg.wait_for_function('window.__pixi && window.__pixi.ready===true', timeout=25000)
+    pg.wait_for_timeout(600)
 
     # BOSS ARENA — clear her escorts so she reads alone, big, mid-fire
     pg.evaluate("""() => { const g = window.__game; g.loadLevel(6); g.state='play';

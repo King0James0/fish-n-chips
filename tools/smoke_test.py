@@ -26,8 +26,9 @@ with sync_playwright() as p:
     pg.on('console', lambda m: errors.append(m.text) if m.type == 'error' else (warnings.append(m.text) if m.type == 'warning' else None))
     pg.on('pageerror', lambda e: errors.append('PAGEERROR: ' + str(e) + '\n' + (e.stack or '')))
 
-    pg.goto('http://127.0.0.1:8137/index.html', wait_until='load')
-    pg.wait_for_timeout(1200)
+    pg.goto('http://127.0.0.1:8137/pixi.html', wait_until='load')
+    pg.wait_for_function('window.__pixi && window.__pixi.ready===true', timeout=25000)
+    pg.wait_for_timeout(600)
     pg.screenshot(path=f'{OUT}/shot_title.png')
 
     # start the game

@@ -24,8 +24,9 @@ with sync_playwright() as p:
     pg = b.new_page(viewport={'width': 700, 'height': 420})
     pg.on('pageerror', lambda e: errors.append(str(e)))
     pg.on('console', lambda m: errors.append(m.text) if m.type == 'error' else None)
-    pg.goto('http://127.0.0.1:8145/index.html', wait_until='load')
-    pg.wait_for_timeout(1200)
+    pg.goto('http://127.0.0.1:8145/pixi.html', wait_until='load')
+    pg.wait_for_function('window.__pixi && window.__pixi.ready===true', timeout=25000)
+    pg.wait_for_timeout(600)
     pg.keyboard.press('Enter'); pg.wait_for_timeout(350)
     pg.keyboard.press('Enter'); pg.wait_for_timeout(250)
 

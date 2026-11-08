@@ -4,318 +4,157 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Fish N Chips — PixiJS build</title>
 <style>html,body{margin:0;height:100%;background:#02040c;overflow:hidden}canvas{display:block}</style>
+<link rel="stylesheet" href="css/style.css">
 </head>
 <body>
+  <div id="touch" aria-hidden="true">
+    <div class="stick" id="stick"><div class="knob"></div></div>
+    <div class="btns">
+      <button class="tb" data-act="form">SHIFT</button>
+      <button class="tb" data-act="ability">USE</button>
+      <button class="tb big" data-act="fire">FIRE</button>
+    </div>
+  </div>
 <script type="module">
-// The Pixi host flag MUST be set before main.js runs so the verified Game
-// class does not start its own Canvas rAF loop (the Pixi ticker drives it).
+// Native PixiJS host — the SOLE build.
+//
+// The verified Game (physics / AI / level logic in js/main.js) runs on an
+// OFFSCREEN 2D canvas purely as a state holder. Its Canvas2D draw() is
+// suppressed (game.nativeRender = true) and the entire draw layer is produced
+// by js/renderer.js as real Pixi containers / sprites / filters. No Canvas
+// frame is ever blitted into the scene — this is a true native rewrite.
 window.__PIXI_HOST__ = true;
 
 import * as PIXI from './vendor/pixi.mjs';
-import { Game, FORMS, FORM_ORDER, POWERS } from './js/main.js';
+import { Game } from './js/main.js';
+import { createRenderer } from './js/renderer.js';
 
 window.__PIXI = PIXI;
-const S = window.__pixi = { ready:false, err:null, fx:{ bloom:false, vignette:false, displace:false, tint:false, glow:false, particles:false }, particleMode:'none', particleCount:0, gradeIndex:-1, gradeMatrix:null };
-
-const clamp = (v,a,b)=> v<a?a:v>b?b:v;
-function hex01(h){ const n=parseInt(h.slice(1),16); return [((n>>16)&255)/255,((n>>8)&255)/255,(n&255)/255]; }
-
-// ---- procedural textures (no external assets, like the Canvas build) ----
-function radialTexture(app, color, soft){
-  const c=document.createElement('canvas'); c.width=c.height=256;
-  const x=c.getContext('2d');
-  const g=x.createRadialGradient(128,128,0,128,128,128);
-  g.addColorStop(0, color); g.addColorStop(soft||0.4, color.replace(/,[^,]*\)/,',0.25)')); g.addColorStop(1,'rgba(0,0,0,0)');
-  x.fillStyle=g; x.fillRect(0,0,256,256);
-  return PIXI.Texture.from(c);
-}
-function noiseTexture(app){
-  // smooth-ish value noise (a few octaves of blurred random) so the shimmer
-  // reads as water, not TV static. addressMode='repeat' lets us scroll it.
-  const S1=128;
-  const c=document.createElement('canvas'); c.width=c.height=S1;
-  const x=c.getContext('2d');
-  // base random field
-  const small=document.createElement('canvas'); small.width=small.height=16;
-  const sx=small.getContext('2d'); const img=sx.createImageData(16,16);
-  for(let i=0;i<img.data.length;i+=4){ const v=Math.random()*255; img.data[i]=img.data[i+1]=img.data[i+2]=v; img.data[i+3]=255; }
-  sx.putImageData(img,0,0);
-  x.imageSmoothingEnabled=true; x.drawImage(small,0,0,S1,S1); // bilinear upscale = smooth
-  // second finer octave for detail
-  const small2=document.createElement('canvas'); small2.width=small2.height=48;
-  const sx2=small2.getContext('2d'); const img2=sx2.createImageData(48,48);
-  for(let i=0;i<img2.data.length;i+=4){ const v=Math.random()*255; img2.data[i]=img2.data[i+1]=img2.data[i+2]=v; img2.data[i+3]=255; }
-  sx2.putImageData(img2,0,0);
-  x.globalAlpha=0.5; x.drawImage(small2,0,0,S1,S1); x.globalAlpha=1;
-  const t=PIXI.Texture.from(c); t.source.addressMode='repeat'; return t;
-}
-
-// ---- per-act color grade: subtle saturation + channel tint, never a wash ----
-// ColorMatrixFilter matrix is 20 values (RGBA rows of 5). We build a saturation
-// matrix then apply a gentle per-channel gain + a tiny additive lift per act.
-function buildGrade(act){
-  const sat = 1.10;
-  const T = {
-    0:[[0.96,1.05,1.07],[0.000,0.004,0.008]], // I   trench teal
-    1:[[0.99,1.08,0.97],[0.000,0.008,0.000]], // II  kelp green
-    2:[[1.07,0.97,1.10],[0.008,0.000,0.008]], // III violet dusk
-    3:[[0.96,1.01,1.10],[0.000,0.000,0.010]], // IV  steel blue
-    4:[[0.96,1.06,1.09],[0.000,0.004,0.008]], // V   ice cyan
-    5:[[1.03,0.97,1.10],[0.004,0.000,0.010]], // VI  abyssal indigo
-    6:[[1.11,1.01,0.90],[0.010,0.000,0.000]], // VII ember
-    7:[[1.10,1.06,0.92],[0.010,0.004,0.000]], // VIII dawn gold
-  }[act] || [[1,1,1],[0,0,0]];
-  const gain=T[0], off=T[1];
-  const lr=0.299, lg=0.587, lb=0.114, sr=1-sat;
-  const satM=[
-    [lr*sr+sat, lg*sr,     lb*sr,     0],
-    [lr*sr,     lg*sr+sat, lb*sr,     0],
-    [lr*sr,     lg*sr,     lb*sr+sat, 0],
-  ];
-  const m=[];
-  for(let r=0;r<3;r++){
-    const g=gain[r];
-    for(let c=0;c<4;c++) m.push(satM[r][c]*g);
-    m.push(off[r]);
-  }
-  m.push(0,0,0,1,0); // alpha passthrough
-  return m;
-}
+const S = window.__pixi = {
+  ready: false, err: null,
+  fx: { bloom: false, vignette: false, displace: false, tint: false, glow: false, particles: false },
+};
 
 async function main(){
-  const dpr = Math.min(2, window.devicePixelRatio||1);
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
   const app = new PIXI.Application();
   await app.init({ width: window.innerWidth, height: window.innerHeight, resolution: dpr,
-                   background:'#02040c', antialias:true, preference:'webgl', autoDensity:true });
+                   background: '#02040c', antialias: true, preference: 'webgl', autoDensity: true });
   document.body.appendChild(app.canvas);
   S.app = app;
 
-  // ---- the verified game, on its own (offscreen) 2D canvas ----
+  // The game's own canvas is OFFSCREEN — never shown. It exists only because the
+  // verified Game class stores this.cv / this.ctx / light / bloom and computes
+  // fit() from cv.width. draw() is suppressed, so its 2D context is never used.
   const cv = document.createElement('canvas');
   const game = new Game(cv);
-  // Keep the game's OWN verified bloom + vignette in the base frame (externalFX
-  // stays false). Pixi then ADDS GPU FX on top, so the result is strictly the
-  // Canvas look plus extra shimmer/grade/particles — never darker.
-  game.externalFX = false;
-  game.gpuParticles = true;        // main.js drawParticles() early-returns; GPU layer draws them
-  window.__game = game;            // same handle the Canvas smoke/shot scripts use
+  game.nativeRender = true;          // main.js draw() early-returns; renderer.js draws
+  window.__game = game;              // same handle the smoke/shot harness uses
   S.game = game;
 
-  // route the game's mouse mapping through the *visible* Pixi canvas rect
+  // The native renderer owns the whole stage: scene graph + filters + HUD + overlays.
+  const R = createRenderer(PIXI, game, app);
+  S.renderer = R;
+  S.fx.bloom = true; S.fx.vignette = true; S.fx.glow = true; S.fx.particles = true;
+  S.fx.displace = !!R.disp; S.fx.tint = !!R.cmf;
+
+  // ---- touch controls (mobile / itch.io) — the native build owns this DOM now ----
+  if (window.matchMedia && matchMedia('(pointer: coarse)').matches) {
+    document.body.classList.add('touch');
+    const stick = document.getElementById('stick');
+    const knob = stick.querySelector('.knob');
+    const cl = (v, a, b) => v < a ? a : v > b ? b : v;
+    let pid = null; const R = 46;
+    const move = (e) => {
+      const r = stick.getBoundingClientRect();
+      let dx = e.clientX - (r.left + r.width / 2);
+      let dy = e.clientY - (r.top + r.height / 2);
+      const m = Math.hypot(dx, dy);
+      if (m > R) { dx *= R / m; dy *= R / m; }
+      knob.style.transform = `translate(${dx}px, ${dy}px)`;
+      game.touchAxis = { x: cl(dx / R, -1, 1), y: cl(dy / R, -1, 1) };
+    };
+    stick.addEventListener('pointerdown', (e) => { pid = e.pointerId; stick.setPointerCapture(pid); move(e); });
+    stick.addEventListener('pointermove', (e) => { if (pid === e.pointerId) move(e); });
+    const end = (e) => { if (pid !== e.pointerId) return; pid = null; knob.style.transform = ''; game.touchAxis = null; };
+    stick.addEventListener('pointerup', end);
+    stick.addEventListener('pointercancel', end);
+    document.querySelectorAll('.tb').forEach((b) => {
+      b.addEventListener('pointerdown', (e) => {
+        e.preventDefault();
+        if (game.state !== 'play') { game.tap(); return; }
+        const act = b.dataset.act;
+        if (act === 'form') game.cycleForm(1);
+        else if (act === 'fire') { game.firing = true; game.aim = Math.atan2(game.vy, game.vx); }
+        else game.ability();
+      });
+      const stopFire = (e) => { if (b.dataset.act === 'fire') game.firing = false; };
+      b.addEventListener('pointerup', stopFire);
+      b.addEventListener('pointercancel', stopFire);
+      b.addEventListener('pointerleave', stopFire);
+    });
+  }
+
+  // Input: map the *visible* Pixi canvas rect into the game's device-pixel aim
+  // space. The game's own canvas is offscreen, so its default setMouse would
+  // divide by a zero-width rect and yield NaN. Use the same dpr the renderer uses
+  // so aim (mouse - _ox)/_s stays consistent with the camera.
   game.setMouse = (e)=>{
     const r = app.canvas.getBoundingClientRect();
-    const k = game.cv.width / (r.width||1);
-    const cx = (e.clientX!=null? e.clientX : (e.global? e.global.x : 0));
-    const cy = (e.clientY!=null? e.clientY : (e.global? e.global.y : 0));
-    game.mouse = { x:(cx-r.left)*k, y:(cy-r.top)*k };
+    const g = game.dpr || dpr;
+    const cx = (e.clientX != null ? e.clientX : (e.global ? e.global.x : 0));
+    const cy = (e.clientY != null ? e.clientY : (e.global ? e.global.y : 0));
+    game.mouse = { x: (cx - r.left) * g, y: (cy - r.top) * g };
   };
 
-  // ---- scene graph ----
-  const world = new PIXI.Container();
-  const base = new PIXI.Sprite(PIXI.Texture.from(cv));
-  base.width = app.screen.width; base.height = app.screen.height;
-  world.addChild(base);
+  // Pointerdown goes through the Pixi stage; move / up / keys are on window (main.js).
+  app.stage.eventMode = 'static';
+  app.stage.hitArea = new PIXI.Rectangle(0, 0, app.screen.width, app.screen.height);
+  app.stage.on('pointerdown', (e)=>{ game.tap(); if(game.state === 'play'){ game.setMouse(e); game.firing = true; } });
+  app.stage.on('pointerup', ()=>{ game.firing = false; });
 
-  const glow = new PIXI.Sprite(radialTexture(app,'rgba(255,255,255,1)',0.3));
-  glow.blendMode='add'; glow.anchor.set(0.5); glow.alpha=0.0; world.addChild(glow);
-
-  // localized additive aura for an active power-up (colored, never a full-screen
-  // fog — a white veil over the whole frame washed everything out)
-  const powerVeil = new PIXI.Sprite(radialTexture(app,'rgba(255,255,255,1)',0.3));
-  powerVeil.blendMode='add'; powerVeil.anchor.set(0.5); powerVeil.alpha=0; world.addChild(powerVeil);
-
-  // ---- (C) GPU particle layer (added on top of the base frame) ----
-  const PARTICLE_TEX = radialTexture(app,'rgba(255,255,255,1)',0.25);
-  const PCAP = 1200;
-  // ParticleContainer was tried first, but in this v8 build it produced ZERO
-  // composited output (verified: hiding/showing its particles changed no pixel),
-  // so we use the pooled additive-Sprite path inside a plain Container, which is
-  // proven to render (same primitive as the glow/powerVeil sprites). Still GPU
-  // batched by the renderer. Recycled each frame, capped at PCAP.
-  let pc = new PIXI.Container(); world.addChild(pc);
-  S.particleMode='pool';
-  const pool=[];
-  function makeParticle(){
-    const s=new PIXI.Sprite(PARTICLE_TEX);
-    s.anchor.set(0.5); s.blendMode='add'; s.tint=0xffffff; s.alpha=0;
-    pc.addChild(s);
-    pool.push(s); return s;
-  }
-  function syncParticles(){
-    const arr = game.particles || [];
-    const n = Math.min(arr.length, PCAP);
-    while(pool.length < n) makeParticle();
-    const s = game._s||1, ox=game._ox||0, oy=game._oy||0;
-    for(let i=0;i<pool.length;i++){
-      const sp=pool[i];
-      if(i<n){
-        const p=arr[i];
-        const a=clamp(p.life/p.max,0,1);
-        sp.position.set((ox+p.x*s)/dpr,(oy+p.y*s)/dpr);
-        sp.alpha=a;
-        const rad=p.s*(0.5+a*0.7)*2*s/dpr;
-        sp.width=sp.height=Math.max(1,rad);
-        sp.tint = (typeof p.c==='string' && p.c[0]==='#') ? parseInt(p.c.slice(1),16) : 0xffffff;
-      } else { sp.alpha=0; sp.width=sp.height=1; }
-    }
-    S.particleCount=n;
-  }
-  S.fx.particles = true;
-
-  // NOTE: the game already draws its OWN vignette (externalFX is false), so we
-  // must NOT add a second Pixi vignette on top. Pixi only ADDS FX here.
-  app.stage.addChild(world);
-  app.stage.eventMode='static';
-  app.stage.hitArea = new PIXI.Rectangle(0,0,app.screen.width,app.screen.height);
-
-  // ---- (A) gentle water displacement (Pixi-native; the Canvas build has none) ----
-  // The noise sprite is added to the STAGE (NOT to `world`, which would inflate
-  // world bounds and corrupt the filter render) with renderable=false, so it is
-  // invisible yet its transform still propagates. We animate its x/y each frame.
-  let disp=null, dispSprite=null;
-  try{
-    dispSprite = new PIXI.Sprite(noiseTexture(app));
-    dispSprite.renderable=false;
-    dispSprite.anchor.set(0);
-    dispSprite.scale.set(1.4);            // noise tile ~180px -> medium-frequency ripple
-    app.stage.addChild(dispSprite);
-    disp = new PIXI.DisplacementFilter(dispSprite, 2.2);
-    try{ disp.scale.set(2.2,2.2); }catch(e){}
-    S.fx.displace = true;
-  }catch(e){ disp=null; S.err = (S.err||'')+' disp:'+String(e); }
-
-  // ---- (B) per-act color grade (ColorMatrixFilter) ----
-  let cmf=null; const gradeCache={}; let lastGrade=-1;
-  try{ cmf = new PIXI.ColorMatrixFilter(); S.fx.tint = true; }catch(e){}
-
-  // ---- input: Pixi owns pointerdown; window already handles move/up/keys ----
-  app.stage.on('pointerdown', (e)=>{ game.tap(); if(game.state==='play'){ game.setMouse(e); game.firing=true; } });
-  app.stage.on('pointerup', ()=>{ game.firing=false; });
-
-  // ---- resize keeps both canvases + the noise sprite in sync ----
   function resize(){
     game.resize();
     app.renderer.resize(window.innerWidth, window.innerHeight);
-    base.width=app.screen.width; base.height=app.screen.height;
+    if (R.resize) R.resize();
   }
   window.addEventListener('resize', resize);
 
-  // ---- per-frame composite ----
-  function refreshTex(){ try{ base.texture.source.update(); }catch(e){ try{ base.texture.update(); }catch(_){} } }
+  // ---- the Pixi ticker drives update + native render ----
+  let frozen = false;
+  function step(dt){ game.pollPad(); game.time += dt; game.update(dt); R.render(); game.pressed.clear(); }
+  app.ticker.add((tf)=>{ if(frozen) return; step(Math.min(0.033, tf.deltaMS / 1000)); });
 
-  // (C) extra "heavier combat" GPU bursts — positions known, cheap to detect.
-  // These push into game.particles which ONLY the GPU layer now draws, so the
-  // Canvas build is untouched. We track hp deltas / death transitions.
-  let prevBossHp=null, prevBossDead=false, prevKills=0; const prevMbHp=new Map();
-  function combatBursts(){
-    const b=game.boss;
-    if(b){
-      if(!b.dead){
-        if(prevBossHp!=null && b.hp<prevBossHp) game.burst(b.x,b.y,6,'#ffd0d8',120);
-        prevBossHp=b.hp; prevBossDead=false;
-      } else if(!prevBossDead){ game.burst(b.x,b.y,40,'#ffe08a',260); prevBossDead=true; }
-    } else { prevBossHp=null; prevBossDead=false; }
-    for(const mb of (game.minibosses||[])){
-      const c = mb.glowC || mb.glow || '#b06ae0';
-      const ph = prevMbHp.get(mb);
-      if(!mb.dead){
-        if(ph!=null && mb.hp<ph) game.burst(mb.x,mb.y,5,c,110);
-        prevMbHp.set(mb,mb.hp);
-      } else if(ph!=null && ph>=0){ game.burst(mb.x,mb.y,30,c,240); prevMbHp.set(mb,-1); }
-    }
-    // enemy deaths: game.burst already fires 22 on death; add a few more at the
-    // same spot by detecting the dead-transition on each creature array.
-    if(game.kills>prevKills){
-      for(const key of ['fish','vipers','lanterns']){
-        for(const e of (game[key]||[])){
-          if(e.dead && !e.__fx){ e.__fx=true; game.burst(e.x,e.y,8,'#ff9db0',150); }
-        }
-      }
-      prevKills=game.kills;
-    }
-  }
+  // scriptable, deterministic stepping for the smoke/shot harness
+  S.step = (n)=>{ frozen = true; for(let i = 0; i < (n || 1); i++) step(0.016); };
+  S.freeze = ()=>{ frozen = true; };
+  S.resume = ()=>{ frozen = false; };
+  S.render = ()=>R.render();
 
-  function renderFrame(){
-    refreshTex();
-    // player glow follows the creature, colored by its form
-    if(game._s && game.form){
-      const sx=(game._ox+game.px*game._s)/dpr, sy=(game._oy+game.py*game._s)/dpr;
-      const rad=(game.form.key==='angler'?178:game.form.key==='jelly'?120:134)*game._s/dpr;
-      glow.position.set(sx,sy); glow.width=glow.height=rad*2;
-      glow.tint = parseInt(game.form.glow.slice(1),16);
-      glow.alpha = 0.5 + (game.power?0.35:0) + (game.pulse>0?0.3:0);
-    } else glow.alpha=0;
-    // power-up grade: ADDITIVE colored veil + brighter aura, never subtractive.
-    if(game.power){
-      const col = parseInt(POWERS[game.power.type].color.slice(1),16);
-      const sx=(game._ox+game.px*game._s)/dpr, sy=(game._oy+game.py*game._s)/dpr;
-      const rad=(game.form.key==='angler'?210:game.form.key==='jelly'?160:180)*game._s/dpr;
-      powerVeil.position.set(sx,sy); powerVeil.width=powerVeil.height=rad*2;
-      powerVeil.tint = col; powerVeil.alpha = 0.55 + 0.12*Math.sin(game.time*3);
-      glow.alpha = Math.min(1, glow.alpha + 0.2);
-    } else {
-      powerVeil.alpha = 0;
-    }
-    // (C) GPU particles + heavier-combat bursts
-    combatBursts();
-    syncParticles();
-    // (A) animate the water shimmer: scroll the (off-screen) noise sprite; repeat
-    // address mode wraps it. Slow drift + a touch of scale breathing.
-    if(dispSprite){
-      const t=game.time;
-      dispSprite.x = (t*7) % 100000;
-      dispSprite.y = (t*4.5) % 100000;
-    }
-    // (B) per-act grade: rebuild the matrix only when the act changes.
-    if(cmf){
-      const li=game.levelIndex|0;
-      if(li!==lastGrade){ gradeCache[li]=gradeCache[li]||buildGrade(li); cmf.matrix=gradeCache[li]; lastGrade=li; S.gradeIndex=li; S.gradeMatrix=gradeCache[li]; }
-    }
-    // combine FX on the world (order: shimmer then grade).
-    const fxs=[]; if(disp) fxs.push(disp); if(cmf) fxs.push(cmf);
-    world.filters = fxs.length? fxs : null;
-    app.render();
-  }
-
-  // ---- the Pixi ticker drives the verified update+draw ----
-  let frozen=false;
-  function step(dt){ game.pollPad(); game.time+=dt; game.update(dt); game.draw(); game.pressed.clear(); }
-  app.ticker.add((tf)=>{ if(frozen) return; step(Math.min(0.033, tf.deltaMS/1000)); renderFrame(); });
-
-  // scriptable pose control for deterministic, same-pose comparisons
-  S.step = (n)=>{ frozen=true; for(let i=0;i<(n||1);i++) step(0.016); renderFrame(); };
-  S.freeze = ()=>{ frozen=true; };
-  S.resume = ()=>{ frozen=false; };
-  S.render = ()=>renderFrame();
-  S.sampleBrightness = ()=>{
-    const c=game.cv, x=c.getContext('2d'); const d=x.getImageData(0,0,c.width,c.height).data;
-    let sum=0, bright=0, n=0; for(let i=0;i<d.length;i+=4*97){ const v=(d[i]+d[i+1]+d[i+2])/3; sum+=v; if(v>60) bright++; n++; }
-    return { mean:+(sum/n).toFixed(1), brightPct:Math.round(100*bright/n), w:c.width, h:c.height };
-  };
-  // mean RGB of the COMPOSITED (shimmer+graded) frame — proves the grade is per-act.
+  // mean RGB of the composited (shimmer + graded) frame — proves the grade is per-act.
   S.gradeRGB = async ()=>{
-    const rt = PIXI.RenderTexture.create({ width:64, height:36 });
-    app.renderer.render({ container: world, target: rt, clear:true });
+    R.render();
+    const rt = PIXI.RenderTexture.create({ width: 64, height: 36, resolution: 1 });
+    app.renderer.render({ container: R.graded, target: rt, clear: true });
     const px = await app.renderer.extract.pixels(rt);
     rt.destroy();
     const d = px.pixels || px;
-    let r=0,g=0,b=0,n=0; for(let i=0;i<d.length;i+=4){ r+=d[i]; g+=d[i+1]; b+=d[i+2]; n++; }
-    return { r:+(r/n).toFixed(1), g:+(g/n).toFixed(1), b:+(b/n).toFixed(1) };
+    let r = 0, g = 0, b = 0, n = 0; for(let i = 0; i < d.length; i += 4){ r += d[i]; g += d[i + 1]; b += d[i + 2]; n++; }
+    return { r: +(r / n).toFixed(1), g: +(g / n).toFixed(1), b: +(b / n).toFixed(1) };
   };
-  // shimmer detector: render the world twice at two noise-sprite offsets and
+
+  // shimmer detector: render the graded container at two noise-sprite offsets and
   // report mean per-pixel difference (0 => displacement doing nothing).
   S.shimmerTest = async ()=>{
-    if(!disp) return -1;
-    // Full-resolution readback: a ~2px warp is invisible after a heavy downscale,
-    // so we sample at native size. app.render() (full stage) propagates the
-    // off-screen noise sprite's transform before each world->RT capture.
-    const rt = PIXI.RenderTexture.create({ width:app.screen.width, height:app.screen.height, resolution:1 });
-    const grab = async ()=>{ app.render(); app.renderer.render({ container: world, target: rt, clear:true }); const px=await app.renderer.extract.pixels(rt); return px.pixels||px; };
-    dispSprite.x=0; dispSprite.y=0; const a=await grab();
-    dispSprite.x=48; dispSprite.y=33; const b=await grab();
+    if(!R.disp) return -1;
+    R.render();
+    const rt = PIXI.RenderTexture.create({ width: app.screen.width, height: app.screen.height, resolution: 1 });
+    const grab = async ()=>{ app.render(); app.renderer.render({ container: R.graded, target: rt, clear: true }); const px = await app.renderer.extract.pixels(rt); return px.pixels || px; };
+    R.dispSprite.x = 0; R.dispSprite.y = 0; const a = await grab();
+    R.dispSprite.x = 48; R.dispSprite.y = 33; const b = await grab();
     rt.destroy();
-    let diff=0,n=0; for(let i=0;i<a.length;i+=4*13){ diff+=Math.abs(a[i]-b[i])+Math.abs(a[i+1]-b[i+1])+Math.abs(a[i+2]-b[i+2]); n++; }
-    return +(diff/n).toFixed(2);
+    let diff = 0, n = 0; for(let i = 0; i < a.length; i += 4 * 13){ diff += Math.abs(a[i] - b[i]) + Math.abs(a[i + 1] - b[i + 1]) + Math.abs(a[i + 2] - b[i + 2]); n++; }
+    return +(diff / n).toFixed(2);
   };
 
   S.ready = true;

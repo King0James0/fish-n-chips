@@ -71,7 +71,7 @@ The Matriarch → The Surface.
 
 ## Running it
 
-It is a plain static web game — no build step, no dependencies, no bundler.
+It is a plain static web game — no build step, no bundler, no install (PixiJS is vendored in `vendor/`).
 
 ```bash
 # any static server works, e.g.
@@ -79,14 +79,15 @@ python3 -m http.server 8000
 # then open http://localhost:8000
 ```
 
-Opening `index.html` directly also works in any modern browser (the code ships as ES modules).
+The game boots from `pixi.html` — the sole build. `index.html` just redirects to it.
 
 ## Layout
 
 ```
-index.html        entry point + touch-control DOM
+pixi.html         sole build: Pixi host + scene wiring + touch controls (index.html redirects here)
 css/style.css     page chrome, touch controls
-js/main.js        engine: input, physics, collision, lighting, creatures, combat, boss, HUD
+js/main.js        engine: input, physics, collision, lighting, creatures, combat, boss, HUD (no draw)
+js/renderer.js    native PixiJS draw layer: scene graph, sprites, filters, HUD/overlays
 js/levels.js      level maps (GENERATED — do not hand-edit)
 js/audio.js       procedural music sequencer + ocean soundscape + combat SFX, all synthesized
 art/              screenshots used by this README
@@ -130,16 +131,22 @@ actually matter:
 
 ## Rendering approach
 
-Everything is drawn procedurally on a 2D canvas — no sprites, no asset pipeline:
+The draw layer is **native PixiJS** (WebGL) — a real scene graph of containers, `Graphics` and
+pooled sprites, not a blitted canvas frame. Everything is still generated at runtime; there is no
+art or asset pipeline:
 
-- a separate **lighting canvas** punched with `destination-out` radial gradients, composited over
-  the scene, so the trench is genuinely dark and your body is the light source
-- two-tier **bloom**, **volumetric god rays**, and a **lens vignette**
-- a **baked rock layer** with per-face rim lighting so silhouettes read against the water column
-- creatures drawn as dark silhouettes with glowing rims, fins, teeth and tentacles — anatomy that
-  survives the bloom, rotating to face your aim
-- additive particles for plankton, form-shift bursts, muzzle flashes, projectiles and shock rings
-- drifting plankton motes, animated anemone curtains, caustic bands near the surface
+- the world is a Pixi `Container` (the camera) holding per-layer `Graphics` for water, ruin
+  backgrounds, baked rock, currents, creatures and the player
+- darkness is an offscreen `RenderTexture` with soft holes punched by `blendMode: 'erase'`, then
+  composited as one sprite, so the trench is genuinely dark and your body is the light source
+- two-tier **bloom** (world → render target → two blurred additive sprites), **volumetric god
+  rays**, and a **vignette** of stroked annulus bands
+- a `DisplacementFilter` scrolls a procedural noise texture for **water shimmer**, and a
+  per-act `ColorMatrixFilter` gives each descent its own colour grade
+- creatures are drawn as dark silhouettes with glowing rims, fins, teeth and tentacles — anatomy
+  that survives the bloom, rotating to face your aim
+- pooled additive sprites carry plankton, form-shift bursts, muzzle flashes, projectiles and
+  shock rings; drifting motes, animated anemone curtains and caustic bands complete the scene
 
 ## Sound
 
@@ -156,7 +163,7 @@ Also entirely synthesized with the Web Audio API — no sound files in the repo:
 
 - **Theme interpretation:** *shift* as shapeshifting, as the light you carry, as shifting between
   surviving and fighting, and as the literal `Shift` key binding — one mechanic, many meanings.
-- **Engine:** none. Vanilla ES modules + Canvas 2D + Web Audio.
+- **Engine:** PixiJS (WebGL) for rendering; vanilla ES modules for logic + Web Audio. No bundler.
 - **AI disclosure (required by the jam):** this project was built with an AI coding assistant
   (Agent Zero). The assistant wrote the engine, the level generator, the tests and this README,
   and ran the headless verification; the concept, theme interpretation and design direction were

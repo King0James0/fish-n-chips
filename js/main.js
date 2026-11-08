@@ -120,6 +120,10 @@ class Game {
     // external GPU compositor (the PixiJS build) can own those effects instead.
     // Defaults false: the shipping Canvas build is unaffected.
     this.externalFX = false;
+    // When true, the ENTIRE Canvas2D draw layer is skipped: a native Pixi
+    // renderer (js/renderer.js) reads game state and draws with Pixi
+    // Graphics/Sprites/Filters instead. update() still runs here.
+    this.nativeRender = false;
     // baked static rock layer, rebuilt per level (frees frame budget for the glow)
     this.rock = document.createElement('canvas');
     this.rctx = this.rock.getContext('2d');
@@ -152,6 +156,7 @@ class Game {
 
     this.state = 'title'; // title | play | actcard | win | ending | score | leaderboard
     this.levelIndex = 0;
+    this.levels = LEVELS;
     this.sparks = 0;
     this.deaths = 0;
     this.time = 0;
@@ -895,6 +900,7 @@ class Game {
 
   // -------------------------------------------------- draw
   draw() {
+    if (this.nativeRender) return;
     const ctx = this.ctx;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.cv.width, this.cv.height);
