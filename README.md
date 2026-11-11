@@ -6,7 +6,7 @@ You are a creature of the deep that can **shift** between three forms. Each form
 others cannot, each one *sees* the trench differently, and each one *fights* differently. Shift to
 descend.
 
-![title](art/store/01_title.png)
+![cover](art/logos/logo_hero_a0picture.png)
 
 ---
 
