@@ -107,11 +107,20 @@ async function main(){
     game.mouse = { x: (cx - r.left) * g, y: (cy - r.top) * g };
   };
 
-  // Pointerdown goes through the Pixi stage; move / up / keys are on window (main.js).
-  app.stage.eventMode = 'static';
-  app.stage.hitArea = new PIXI.Rectangle(0, 0, app.screen.width, app.screen.height);
-  app.stage.on('pointerdown', (e)=>{ game.tap(); if(game.state === 'play'){ game.setMouse(e); game.firing = true; } });
-  app.stage.on('pointerup', ()=>{ game.firing = false; });
+  // Input: a plain DOM listener on the VISIBLE canvas is the single source of
+  // truth for pointer input. The Pixi stage event system was flaky inside the
+  // itch.io iframe — the first click/tap often never registered, so the title
+  // screen ignored every input. A DOM pointerdown on the canvas fires reliably
+  // in iframes and on touch; window.focus() grabs keyboard focus so keys work.
+  // The touch controls are separate elements ON TOP of the canvas, so tapping
+  // them never hits this listener (no double-fire).
+  app.canvas.addEventListener('pointerdown', (e)=>{
+    try { window.focus(); } catch (_) {}
+    game.tap();
+    if (game.state === 'play') { game.setMouse(e); game.firing = true; }
+  });
+  app.canvas.addEventListener('pointerup', ()=>{ game.firing = false; });
+  app.canvas.addEventListener('pointercancel', ()=>{ game.firing = false; });
 
   function resize(){
     game.resize();

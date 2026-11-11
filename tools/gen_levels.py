@@ -2,7 +2,7 @@
 """Generate + validate js/levels.js for Fish N Chips. 96x44 grid, TILE=28."""
 import json
 
-W, H = 96, 44
+W, H = 96, 58
 
 def blank():
     g = [['.' for _ in range(W)] for _ in range(H)]
@@ -55,6 +55,41 @@ def dump(name, g):
     for r in g: print(''.join(r))
     print()
 
+def add_maze(g, li):
+    """Extra vertical depth + a 'lite maze' of staggered walls. Every vertical
+    wall carries open gaps so the 4-neighbour flood fill stays connected; the
+    new lower band (rows 44+) is where the extra walls live, so no required
+    item (all sit in rows 0-43) can be sealed off."""
+    R = H - 2
+    M = {
+      0: [(18,44,[48,52]), (40,44,[50]), (72,44,[46,53]), (88,44,[49])],
+      1: [(20,44,[49,53]), (48,44,[47]), (76,44,[51])],
+      2: [(24,44,[50]), (52,44,[46,53]), (80,44,[49])],
+      3: [(16,44,[48,52]), (44,44,[50]), (70,44,[47,53])],
+      4: [(28,44,[50]), (56,44,[46,52]), (82,44,[49])],
+      5: [(18,44,[49,53]), (46,44,[50]), (74,44,[47])],
+      6: [(26,44,[50]), (60,44,[46,53])],
+      7: [(24,44,[50,54]), (52,44,[48]), (78,44,[52])],
+    }
+    for (x, y0, gaps) in M[li]:
+        wall_v(g, x, y0, R, '#', gaps)
+    L = {
+      0: [(30,50,8,2),(60,46,8,2),(8,54,10,2)],
+      1: [(34,52,8,2),(64,48,8,2)],
+      2: [(36,50,8,2),(66,54,8,2)],
+      3: [(28,52,8,2),(58,48,8,2)],
+      4: [(38,50,8,2),(68,54,8,2)],
+      5: [(30,52,8,2),(62,48,8,2)],
+      6: [(36,50,8,2),(70,54,8,2)],
+      7: [(34,50,8,2),(64,54,8,2),(12,48,8,2)],
+    }
+    for (x,y,w,h) in L[li]:
+        rect(g, x, y, w, h)
+    if li == 7:
+        place(g, [(20,24),(38,22),(56,26),(74,26),(90,36),(20,40),(74,40)], 'i', 'Act VIII extra spines')
+        place(g, [(34,30),(58,30),(16,44),(80,44)], 'w', 'Act VIII extra whirlpools')
+        place(g, [(10,10),(20,12),(36,10),(50,16),(68,12),(80,16)], 'k', 'Act VIII extra kelp')
+
 # ---------------- Act I: The Trench ----------------
 # Teach: swim, urchins kill, plankton, sealed wall with a 1-tile gap (angler too
 # chunky -> must shift to eel or jelly), checkpoint, goal.
@@ -80,6 +115,12 @@ items(l1, [(40, 24), (56, 8)], 'T')        # stinger gates
 items(l1, [(34, 20)], 'V')                 # viperfish shoots back
 items(l1, [(70, 18)], 'L')                 # lanternfish hunts your glow
 items(l1, [(48, 22)], 'M')                 # mini-boss (open water, mid-trench)
+# themed Act I obstacles: whirlpool pull, floor geysers, spine clusters, kelp
+place(l1, [(12, 36), (13, 37), (14, 38), (30, 8), (31, 9), (46, 16), (47, 17), (68, 34), (69, 35), (84, 14)], 'k', 'Act I kelp')
+place(l1, [(18, 40), (58, 40), (86, 38)], 'g', 'Act I geysers')
+place(l1, [(38, 12), (50, 26), (78, 20)], 'i', 'Act I spines')
+place(l1, [(40, 34), (54, 16)], 'w', 'Act I whirlpools')
+add_maze(l1, 0)
 
 # ---------------- Act II: The Drift ----------------
 # Teach: jellyfish passes anemone curtains; updrafts carry you. Eel/angler burn.
@@ -107,6 +148,12 @@ items(l2, [(20, 14), (58, 28)], 'T')
 items(l2, [(56, 8)], 'V')
 items(l2, [(26, 12), (48, 24), (70, 16)], 'L')
 items(l2, [(49, 22)], 'M')                 # mini-boss (open drift channel)
+# themed Act II obstacles: kelp thickets, drifting spine fields, gentle vortices
+place(l2, [(8, 12), (9, 13), (34, 30), (35, 31), (56, 12), (57, 13), (78, 24), (79, 25), (90, 34)], 'k', 'Act II kelp')
+place(l2, [(24, 40), (66, 40)], 'g', 'Act II geysers')
+place(l2, [(18, 22), (44, 20), (72, 34)], 'i', 'Act II spines')
+place(l2, [(32, 26), (68, 12)], 'w', 'Act II whirlpools')
+add_maze(l2, 1)
 
 # ---------------- Act III: The Lure ----------------
 # Teach: angler lure reveals hidden blocks; flare stuns patrolling fish.
@@ -133,6 +180,12 @@ items(l3, [(34, 10), (62, 24)], 'T')
 items(l3, [(22, 10), (52, 26)], 'V')
 items(l3, [(42, 18), (70, 10)], 'L')
 items(l3, [(45, 22)], 'M')                 # mini-boss (open water mid-lure)
+# themed Act III obstacles: wrecked-temple spines, silt geysers, kelp, eddies
+place(l3, [(20, 34), (21, 35), (40, 22), (41, 23), (60, 14), (61, 15), (84, 26), (85, 27)], 'k', 'Act III kelp')
+place(l3, [(24, 40), (56, 40), (76, 40)], 'g', 'Act III geysers')
+place(l3, [(16, 16), (38, 32), (58, 22), (78, 14)], 'i', 'Act III spines')
+place(l3, [(36, 16), (74, 30)], 'w', 'Act III whirlpools')
+add_maze(l3, 2)
 
 # ---------------- Act IV: The Gauntlet ----------------
 # Sequence: narrow gap -> anemone curtain -> hidden maze -> fish corridor.
@@ -160,6 +213,12 @@ items(l4, [(14, 22), (62, 16)], 'T')
 items(l4, [(28, 8), (66, 36)], 'V')
 items(l4, [(48, 26), (82, 18)], 'L')
 items(l4, [(48, 22)], 'M')                 # mini-boss (open water mid-gauntlet)
+# themed Act IV obstacles: hull spines, flooding geysers, kelp, eddies
+place(l4, [(6, 30), (7, 31), (26, 12), (27, 13), (44, 22), (45, 23), (68, 12), (69, 13), (86, 18), (87, 19)], 'k', 'Act IV kelp')
+place(l4, [(20, 40), (48, 40), (80, 40)], 'g', 'Act IV geysers')
+place(l4, [(16, 16), (38, 20), (58, 36), (82, 28)], 'i', 'Act IV spines')
+place(l4, [(28, 34), (72, 20)], 'w', 'Act IV whirlpools')
+add_maze(l4, 3)
 
 # ---------------- Act V: The Ascent ----------------
 # Vertical climb: platforms, updrafts, anemone, hidden wall, fish, goal at top.
@@ -188,6 +247,12 @@ items(l5, [(22, 12), (62, 34)], 'T')
 items(l5, [(40, 28), (74, 10)], 'V')
 items(l5, [(48, 20), (84, 6)], 'L')
 items(l5, [(47, 22)], 'M')                 # mini-boss guards the climb
+# themed Act V obstacles: kelp on the terraces, vent geysers, spines, eddies
+place(l5, [(6, 34), (7, 35), (24, 18), (25, 19), (44, 26), (45, 27), (64, 12), (65, 13), (84, 22), (85, 23)], 'k', 'Act V kelp')
+place(l5, [(12, 40), (38, 40), (58, 40), (82, 40)], 'g', 'Act V geysers')
+place(l5, [(30, 26), (42, 18), (66, 26), (78, 16)], 'i', 'Act V spines')
+place(l5, [(36, 32), (62, 20)], 'w', 'Act V whirlpools')
+add_maze(l5, 4)
 
 # ---------------- Act VI: The Hollow ----------------
 # Longer open arena. Heavy enemies, power-ups, currents. All three forms.
@@ -216,6 +281,12 @@ items(l6, [(30, 18), (70, 36)], 'T')
 items(l6, [(16, 20), (50, 30), (86, 8)], 'P')
 items(l6, [(5, 2), (34, 38), (64, 6), (92, 26)], 'b')
 items(l6, [(48, 22)], 'M')                 # mini-boss (open arena centre)
+# themed Act VI obstacles: crystal-cavern spines, silt geysers, kelp, vortices
+place(l6, [(8, 30), (9, 31), (28, 20), (29, 21), (46, 14), (47, 15), (62, 32), (63, 33), (80, 16), (81, 17)], 'k', 'Act VI kelp')
+place(l6, [(22, 40), (44, 40), (66, 40), (88, 40)], 'g', 'Act VI geysers')
+place(l6, [(14, 34), (36, 12), (54, 32), (72, 14), (86, 30)], 'i', 'Act VI spines')
+place(l6, [(26, 34), (58, 26), (78, 20)], 'w', 'Act VI whirlpools')
+add_maze(l6, 5)
 
 # ---------------- Act VII: The Matriarch (BOSS) ----------------
 # A wide arena. Shoot the Matriarch; dodge her orbs. Power-ups to help.
@@ -236,6 +307,10 @@ items(l7, [(20, 22), (74, 22)], 'P')
 items(l7, [(30, 10), (66, 34)], 'L')
 items(l7, [(36, 34), (60, 10)], 'V')
 items(l7, [(2, 4), (92, 4), (2, 40), (92, 40)], 'b')
+# themed Act VII arena hazards: spine clusters + eddies, kept clear of the beacon lane
+place(l7, [(16, 10), (80, 34), (30, 34), (66, 10)], 'i', 'Act VII spines')
+place(l7, [(24, 14), (72, 30)], 'w', 'Act VII whirlpools')
+add_maze(l7, 6)
 
 # ---------------- Act VIII: The Surface ----------------
 # Final ascent. Updrafts, anemone gauntlet, thin safe paths, the beacon.
@@ -268,17 +343,23 @@ items(l8, [(40, 36), (72, 8)], 'L')
 items(l8, [(56, 30)], 'V')
 items(l8, [(4, 38), (44, 4), (88, 40)], 'b')
 items(l8, [(22, 10), (62, 36)], 'T')
+# themed Act VIII obstacles: surface kelp, vent geysers, spines, last eddies
+place(l8, [(6, 34), (7, 35), (26, 14), (27, 15), (44, 18), (45, 19), (62, 34), (63, 35), (86, 18), (87, 19)], 'k', 'Act VIII kelp')
+place(l8, [(14, 40), (36, 40), (60, 40), (86, 40)], 'g', 'Act VIII geysers')
+place(l8, [(20, 24), (38, 22), (56, 18), (74, 26), (90, 36)], 'i', 'Act VIII spines')
+place(l8, [(34, 30), (58, 30)], 'w', 'Act VIII whirlpools')
+add_maze(l8, 7)
 
 # ---------------- emit ----------------
 levels = [
     ("Act I — The Trench",
-     "WASD / Arrows swim · Q/E shift form · 1 eel 2 angler 3 jelly · SPACE ability · R restart",
+     "WASD / Arrows swim · SHIFT changes creature · SPACE ability · R restart",
      l1),
     ("Act II — The Drift",
-     "The curtain burns eel and angler. Become the jellyfish (3). Updrafts carry the willing. Lanternfish hunt your glow — flare them off.",
+     "The curtain burns eel and angler. SHIFT until you become the jellyfish. Updrafts carry the willing. Lanternfish hunt your glow — flare them off.",
      l2),
     ("Act III — The Lure",
-     "Become the angler (2). The lure reveals what the dark hides. SPACE flare stuns fish and viperfish — costs 2 sparks.",
+     "SHIFT until you become the angler. The lure reveals what the dark hides. SPACE flare stuns fish and viperfish — costs 2 sparks.",
      l3),
     ("Act IV — The Gauntlet",
      "All three forms. Remember what each one can survive.",
@@ -345,6 +426,7 @@ for name, hint, g in levels:
 
 out = """// Fish N Chips — level data (generated by tools/gen_levels.py — edit there!)
 // Legend: # rock · . water · ^< >v current · a anemone · h hidden block
+//         w whirlpool · g geyser vent · i spine cluster · k kelp (slows)
 //         * plankton · S spawn · D checkpoint · G beacon · b bulb
 // enemies: U urchin · F dragonfish patrol · V viperfish (charges what it sees)
 //          L lanternfish (homes on your light) · T stinger (timed tentacle gate)

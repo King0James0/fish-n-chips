@@ -141,6 +141,7 @@ class Game {
     this.power = null;
     this.boss = null;
     this.bossOrbs = [];
+    this.bossWaves = [];    // Matriarch secondary attack: expanding shockwave rings
     this.minibosses = [];   // per-act mini-bosses spawned from level char 'M'
     this.inkClouds = [];    // kraken ink: light-eating clouds
     this._s = 0; this._ox = 0; this._oy = 0;
@@ -162,6 +163,8 @@ class Game {
     this.time = 0;
     this.startedAt = 0;
     this.muted = false;
+    this.abilityUsed = { eel: false, angler: false, jelly: false };
+    this.shiftShown = false;
     // score system (item 7): per-run elapsed time + total enemy kills
     this.kills = 0;
     this.runStats = null;
@@ -236,12 +239,7 @@ class Game {
     if (k === 'm') { this.muted = !this.muted; this.au.setMuted(this.muted); }
     if (k === 'b') { this.bloomOn = !this.bloomOn; }
     if (k === 'r') { this.die(true); }
-    if (k === '1') this.setForm('eel');
-    if (k === '2') this.setForm('angler');
-    if (k === '3') this.setForm('jelly');
-    if (k === 'q') this.cycleForm(-1);
-    if (k === 'e') this.cycleForm(1);
-    if (k === ' ' || k === 'Shift') this.ability();
+    if (k === 'Shift') this.cycleForm(1);
     if (k === 'f') this.firing = down;
   }
 
@@ -291,6 +289,7 @@ class Game {
       this.px = spot.x; this.py = spot.y;
       this.ring(this.px, this.py, f.glow, 3, 30, 0.3);
     }
+    if (!this.shiftShown) { this.shiftShown = true; this.say('SHIFT swaps your creature'); }
     this.au.shift();
     this.shake = Math.max(this.shake, 6);
     this.flash = Math.max(this.flash, 0.35);
@@ -305,7 +304,9 @@ class Game {
 
   // -------------------------------------------------- level loading
   begin() {
-    this.au.startAmbient();
+    // Audio must NEVER block starting the game — if the AudioContext is
+    // unavailable or throws (autoplay policies, odd embeds), we still begin.
+    try { this.au.startAmbient(); } catch (_) {}
     this.startedAt = this.time;
     this.kills = 0;
     this.loadLevel(this.levelIndex);
@@ -332,6 +333,7 @@ class Game {
     this.eshots = [];
     this.powerups = [];
     this.bossOrbs = [];
+    this.bossWaves = [];
     this.boss = null;
     this.minibosses = [];
     this.inkClouds = [];
@@ -339,6 +341,10 @@ class Game {
     this.bulbs = [];
     this.anemones = [];
     this.currents = [];
+    this.whirlpools = [];
+    this.geysers = [];
+    this.spikes = [];
+    this.kelp = [];
     this.checkpoints = [];
     this.goal = null;
     this.spawn = { x: TILE * 1.5, y: TILE * 1.5 };
@@ -357,10 +363,14 @@ class Game {
         else if (c === 'b') this.bulbs.push({ x: cx, y: cy, ph: Math.random() * 6 });
         else if (c === 'a') this.anemones.push({ x, y });
         else if (c === '^' || c === 'v' || c === '<' || c === '>') this.currents.push({ x, y, dx: c, ph: Math.random() * 6 });
+        else if (c === 'w') this.whirlpools.push({ x: cx, y: cy, ph: Math.random() * 6 });
+        else if (c === 'g') this.geysers.push({ x: cx, y: cy, ph: Math.random() * 6 });
+        else if (c === 'i') this.spikes.push({ x: cx, y: cy, ph: Math.random() * 6 });
+        else if (c === 'k') this.kelp.push({ x, y });
         else if (c === 'D') this.checkpoints.push({ x: cx, y: cy, on: false, ph: Math.random() * 6 });
         else if (c === 'G') this.goal = { x: cx, y: cy };
         else if (c === 'P') this.powerups.push({ x: cx, y: cy, type: ['overcharge', 'storm', 'aegis'][Math.floor(Math.random() * 3)], got: false, ph: Math.random() * 6 });
-        else if (c === 'B') this.boss = { x: cx, y: cy, x0: cx, y0: cy, hp: 60, maxhp: 60, t: 0, fireT: 1.4, enraged: false, dead: false, dieT: 0, ph: 0, final: true };
+        else if (c === 'B') this.boss = { x: cx, y: cy, x0: cx, y0: cy, hp: 80, maxhp: 80, t: 0, fireT: 1.4, waveT: 2.4, enraged: false, dead: false, dieT: 0, ph: 0, final: true };
         else if (c === 'M') {
           // one mini-boss per act, kind chosen by act index (item 4)
           const spec = MINIBOSSES[this.levelIndex % MINIBOSSES.length];
@@ -373,6 +383,8 @@ class Game {
         }
       }
     }
+
+    this.kelpSet = new Set(this.kelp.map((kp) => kp.x + ',' + kp.y));
 
     // group contiguous vertical anemone tiles into runs so the curtain reads as
     // long tentacles instead of a stack of per-tile chevrons
@@ -527,6 +539,10 @@ class Game {
   ability() {
     if (this.cooldown > 0) return;
     const a = this.form.ability;
+    if (!this.abilityUsed[this.form.key]) {
+      this.abilityUsed[this.form.key] = true;
+      this.say({ eel: 'DASH — a burst of speed', angler: 'FLARE — blinds and reveals the hidden', jelly: 'PULSE — a jet upward' }[this.form.key]);
+    }
     if (a === 'dash') {
       const dx = this.lastDirX || 1, dy = this.lastDirY || 0;
       const m = Math.hypot(dx, dy) || 1;
@@ -596,6 +612,9 @@ class Game {
     this.px = this.respawn.x; this.py = this.respawn.y;
     this.vx = 0; this.vy = 0;
     this.form = FORMS.eel;
+    // lingering enemy fire (kraken tentacle zones, ink spray) must not camp the
+    // respawn point and chain deaths: clear anything near it
+    this.eshots = this.eshots.filter((es) => Math.hypot(es.x - this.respawn.x, es.y - this.respawn.y) > 170);
     for (const c of this.checkpoints) if (c.on) { /* keep */ }
     this.fade = 1;
   }
@@ -679,7 +698,7 @@ class Game {
     // ---- aim (item 1): target from cursor / right-stick / heading, then a
     // dt-based shortest-arc lerp toward it. SMOOTH ~11 keeps it responsive but
     // removes the snap/twitch of the old direct atan2 assignment. ----
-    const SMOOTH = 11;
+    const SMOOTH = 7;
     let wantAim = false;
     if (this.padAim && (Math.abs(this.padAim.x) > 0.25 || Math.abs(this.padAim.y) > 0.25)) {
       this.aimTarget = Math.atan2(this.padAim.y, this.padAim.x); wantAim = true;
@@ -707,6 +726,7 @@ class Game {
     else if (tc === 'v') this.vy += 300 * dt;
     else if (tc === '<') this.vx -= 300 * dt;
     else if (tc === '>') this.vx += 300 * dt;
+    else if (tc === 'k') { this.vx -= this.vx * 2.4 * dt; this.vy -= this.vy * 2.4 * dt; }
     // drag
     this.vx -= this.vx * drag * dt;
     this.vy -= this.vy * drag * dt;
@@ -817,6 +837,32 @@ class Game {
       if (HAZARD_BURN.has(t2)) { this.au.blip(120, 0.2, 'sawtooth', 0.18); this.say(f.name + ' burns in the anemone — shift to JELLY'); this.die(); return; }
     }
 
+    // ---- WHIRLPOOL: pulls and swirls; the eye is lethal ---------------------
+    for (const wp of this.whirlpools) {
+      const dx = wp.x - this.px, dy = wp.y - this.py, d = Math.hypot(dx, dy);
+      if (d < 150) {
+        const k = 1 - d / 150;
+        const inv = 1 / (d || 1);
+        this.vx += dx * inv * 230 * k * dt; this.vy += dy * inv * 230 * k * dt;
+        this.vx += -dy * inv * 320 * k * dt; this.vy += dx * inv * 320 * k * dt;
+        if (d < 26) { this.say('whirlpool eye — fight the pull before you drift in'); this.die(); return; }
+      }
+    }
+
+    // ---- GEYSER: periodic updraft plume off the vents -----------------------
+    for (const gz of this.geysers) {
+      gz.on = Math.sin(this.time * 1.35 + gz.ph) > 0.35;
+      if (gz.on && Math.abs(gz.x - this.px) < 34 && this.py > gz.y - 230 && this.py < gz.y + 12) {
+        this.vy -= 540 * dt;
+        if (Math.random() < dt * 16) this.particles.push({ x: this.px + rnd(-10, 10), y: this.py + rnd(-6, 6), vx: rnd(-22, 22), vy: rnd(-170, -60), life: rnd(0.3, 0.7), max: 0.7, c: '#9fe8ff', s: rnd(1.2, 2.6), g: -30 });
+      }
+    }
+
+    // ---- SPIKE CLUSTER: static lethal spines ---------------------------------
+    for (const sp of this.spikes) {
+      if (Math.hypot(sp.x - this.px, sp.y - this.py) < r + 11) { this.say('spine cluster — thread around it'); this.die(); return; }
+    }
+
     // ---- COMBAT: projectiles, boss, boss orbs, power-ups -------------------
     for (const es of this.eshots) {
       // homing enemy pulses (lanternfish king / reef serpent) curve after the player
@@ -825,11 +871,12 @@ class Game {
         const turn = 3.2 * dt; es.vx += (hx / hd) * es.maxs * turn; es.vy += (hy / hd) * es.maxs * turn;
         const sp = Math.hypot(es.vx, es.vy) || 1; if (sp > es.maxs) { es.vx *= es.maxs / sp; es.vy *= es.maxs / sp; }
       }
+      if (es.warn > 0) es.warn -= dt;   // telegraphed zones are harmless while warning
       es.x += es.vx * dt; es.y += es.vy * dt; es.life -= dt;
       if (es.g) es.vy += es.g * dt;   // lobbed rock shards arc and fall
       const t = this.tileAt(es.x, es.y);
       if (t === '#' || t === 'h') { es.life = 0; if (es.g) this.burst(es.x, es.y, 5, '#c9a06a', 60); }
-      if (es.life > 0 && Math.hypot(es.x - this.px, es.y - this.py) < r + es.r) {
+      if (es.life > 0 && !(es.warn > 0) && Math.hypot(es.x - this.px, es.y - this.py) < r + es.r) {
         es.life = 0; this.say(es.msg || 'viperfish spit — break its line of sight'); this.die(); return;
       }
     }
@@ -1845,7 +1892,14 @@ class Game {
           this.bossOrbs.push({ x: b.x, y: b.y, vx: Math.cos(a) * 150, vy: Math.sin(a) * 150, life: 5 }); }
         this.au.bossHit(); this.ring(b.x, b.y, '#ff5d73', 6, 60, 0.4);
       }
-      if (d < 46 + r) { this.say('the Matriarch — shoot it, do not touch it'); this.die(); return; }
+      // secondary attack: a telegraphed shockwave ring that expands to kill
+      b.waveT -= dt;
+      if (b.waveT <= 0) {
+        b.waveT = b.enraged ? 2.6 : 3.6;
+        this.bossWaves.push({ x: b.x, y: b.y, r: 30, maxR: b.enraged ? 430 : 340, warn: 0.9, life: 3.4, speed: b.enraged ? 215 : 175, c: b.enraged ? '#ff5d73' : '#ffd166' });
+        this.au.bossRoar(); this.ring(b.x, b.y, b.enraged ? '#ff5d73' : '#ffd166', 8, 90, 0.5);
+      }
+      if (d < 64 + r) { this.say('the Matriarch — shoot it, do not touch it'); this.die(); return; }
     } else if (b && b.dead) {
       b.dieT += dt; this.au.setIntensity(0.3);
     } else {
@@ -1858,6 +1912,15 @@ class Game {
       if (Math.hypot(o.x - this.px, o.y - this.py) < r + 9) { this.die(); return; }
     }
     this.bossOrbs = this.bossOrbs.filter((o) => o.life > 0 && !solids(o.x, o.y));
+
+    // boss shockwaves (secondary attack): telegraph, then expand to kill
+    for (const w of this.bossWaves) {
+      if (w.warn > 0) { w.warn -= dt; continue; }
+      w.r += w.speed * dt; w.life -= dt;
+      const pd = Math.hypot(this.px - w.x, this.py - w.y);
+      if (w.life > 0 && Math.abs(pd - w.r) < 14 + r) { this.say("the Matriarch's shockwave — dive inside or out"); this.die(); return; }
+    }
+    this.bossWaves = this.bossWaves.filter((w) => w.life > 0 && w.r < w.maxR);
   }
 
   _boom(sh) {
@@ -2046,14 +2109,16 @@ class Game {
         mb.x = clamp(mb.x, TILE * 3, this.ww - TILE * 3);
         mb.y = clamp(mb.y, TILE * 3, this.wh - TILE * 3);
         if (mb.fireT <= 0) {
-          mb.fireT = (mb.enraged ? 1.5 : 2.3);
-          const n = mb.enraged ? 7 : 5;
-          for (let i = 0; i < n; i++) { const a = mb.ph + (i - (n - 1) / 2) * 0.3; shoot(mb, Math.cos(a) * 150, Math.sin(a) * 150, 'ink spray', 3, 8, 0, false, '#c78aff'); }
-          // two lingering tentacle-hit zones near the player's path
+          mb.fireT = (mb.enraged ? 2.1 : 3.3);
+          const n = mb.enraged ? 6 : 4;
+          for (let i = 0; i < n; i++) { const a = mb.ph + (i - (n - 1) / 2) * 0.3; shoot(mb, Math.cos(a) * 130, Math.sin(a) * 130, 'ink spray', 3, 7, 0, false, '#c78aff'); }
+          // two lingering tentacle-hit zones: telegraphed (warn phase), aimed at
+          // the player's lane but offset so they never land on the player
           for (let k = 0; k < 2; k++) {
-            const zx = clamp(this.px + rnd(-90, 90), TILE * 2, this.ww - TILE * 2);
-            const zy = clamp(this.py + rnd(-90, 90), TILE * 2, this.wh - TILE * 2);
-            this.eshots.push({ x: zx, y: zy, vx: 0, vy: 0, life: 2.6, r: 20, msg: 'kraken tentacle', c: '#b06ae0' });
+            const ang = Math.random() * Math.PI * 2, dist = rnd(120, 200);
+            const zx = clamp(this.px + Math.cos(ang) * dist, TILE * 2, this.ww - TILE * 2);
+            const zy = clamp(this.py + Math.sin(ang) * dist, TILE * 2, this.wh - TILE * 2);
+            this.eshots.push({ x: zx, y: zy, vx: 0, vy: 0, life: 2.2, r: 20, warn: 0.9, msg: 'kraken tentacle', c: '#b06ae0' });
           }
           this.au.blip(90, 0.18, 'sawtooth', 0.14);
         }
@@ -2888,7 +2953,7 @@ class Game {
     this.rr(18, h - 30, 120 * (1 - cd), 5, 3); ctx.fill();
     ctx.font = '500 10px ui-monospace, Menlo, monospace';
     ctx.fillStyle = 'rgba(180,210,240,0.5)';
-    ctx.fillText('SPACE · ' + this.form.abilityName + (this.form.ability === 'flare' ? ' (2 sparks)' : ''), 18, h - 40);
+    ctx.fillText(this.form.abilityName + (this.form.ability === 'flare' ? ' (2 sparks)' : ''), 18, h - 40);
 
     // boss / mini-boss health bar (item 7): the Matriarch takes priority; else the
     // first live mini-boss shows its own name + hp in its glow colour.
@@ -3026,7 +3091,7 @@ class Game {
 
     ctx.font = '500 11px ui-monospace, Menlo, monospace';
     ctx.fillStyle = 'rgba(150,185,215,0.45)';
-    ctx.fillText('WASD / ARROWS swim · Q E shift form · SPACE ability · R restart · M mute', w / 2, h * 0.92);
+    ctx.fillText('WASD / ARROWS swim · SHIFT change creature · R restart · M mute', w / 2, h * 0.92);
     ctx.textAlign = 'left';
   }
 
