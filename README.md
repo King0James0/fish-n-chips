@@ -6,7 +6,7 @@ You are a creature of the deep that can **shift** between three forms. Each form
 others cannot, each one *sees* the trench differently, and each one *fights* differently. Shift to
 descend.
 
-![title](art/shot_title.png)
+![title](art/store/01_title.png)
 
 ---
 
@@ -14,14 +14,13 @@ descend.
 
 Three interpretations of the theme, folded into one verb:
 
-| Form | Key | Body | Sees | Survives | Ability | Weapon |
-|---|---|---|---|---|---|---|
-| **Eel** | `1` | slim, fast | a small halo | narrow gaps | **Dash** | **Bio-electric zap** — fast, piercing |
-| **Angler** | `2` | bulky, slow | a wide lure-light that **reveals hidden rock** | open water | **Flare** — stuns, costs 2 sparks | **Lure bolt** — slow, explodes on impact |
-| **Jelly** | `3` | drifting | a soft glow | the **burning anemone curtain** | **Pulse** — an upward thrust | **Nematocyst cloud** — a spreading, homing spray |
+| Form | Body | Sees | Survives | Ability | Weapon |
+|---|---|---|---|---|---|
+| **Eel** | slim, fast | a small halo | narrow gaps | **Dash** | **Bio-electric zap** — fast, piercing |
+| **Angler** | bulky, slow | a wide lure-light that **reveals hidden rock** | open water | **Flare** — stuns, costs 2 sparks | **Lure bolt** — slow, explodes on impact |
+| **Jelly** | drifting | a soft glow | the **burning anemone curtain** | **Pulse** — an upward thrust | **Nematocyst cloud** — a spreading, homing spray |
 
-`Q` / `E` cycle forms, `1 2 3` pick directly. The **Shift key** also fires the current ability,
-because the pun was too good to leave on the floor.
+Press **`Shift`** to cycle through the three forms in order (eel → angler → jelly → …).
 
 The world is lit *only* by what you carry. Rock is a black silhouette; the angler's lure is the
 only thing that exposes blocks that are otherwise invisible — so the same geometry is a different
@@ -58,8 +57,8 @@ she is slain.
 - **Move** — `WASD` / arrow keys, left analog on a gamepad
 - **Aim** — mouse cursor, right analog, or just your heading
 - **Fire** — hold the **mouse button** or **`F`**, or the right trigger on a gamepad
-- **Shift form** — `1` `2` `3`, or `Q` / `E` to cycle
-- **Ability** — `SPACE` (or `SHIFT`, or gamepad `A`)
+- **Shift form** — `SHIFT` to cycle (eel → angler → jelly)
+- **Ability** — `SPACE` (or gamepad `A`)
 - **Restart act** — `R` · **Mute** — `M` · **Toggle bloom** — `B`
 - Touch: on-screen stick + SHIFT / USE / FIRE buttons appear on phones and tablets
 
@@ -90,7 +89,9 @@ js/main.js        engine: input, physics, collision, lighting, creatures, combat
 js/renderer.js    native PixiJS draw layer: scene graph, sprites, filters, HUD/overlays
 js/levels.js      level maps (GENERATED — do not hand-edit)
 js/audio.js       procedural music sequencer + ocean soundscape + combat SFX, all synthesized
-art/              screenshots used by this README
+art/bg/           the eight act background images (the only art the game loads)
+art/logos/        title-logo concepts (marketing)
+art/store/        store-page screenshots
 tools/gen_levels.py     builds js/levels.js and validates every map (bounds + reachability)
 tools/smoke_test.py     headless runtime test (Playwright) + screenshots
 ```

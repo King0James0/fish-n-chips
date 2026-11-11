@@ -240,6 +240,7 @@ class Game {
     if (k === 'b') { this.bloomOn = !this.bloomOn; }
     if (k === 'r') { this.die(true); }
     if (k === 'Shift') this.cycleForm(1);
+    if (k === ' ') this.ability();
     if (k === 'f') this.firing = down;
   }
 
