@@ -1614,6 +1614,11 @@ export function createRenderer(PIXI, game, app) {
         .fill({ color: 0xffe1a0, alpha: 0.5 * (1 - t) });
     }
     goalG.circle(g0.x, g0.y, 15 + pu * 3).stroke({ width: 2, color: 0xfff0c8, alpha: 0.85 });
+    // pulsing beacon rings — one shared draw, so identical in every act
+    for (let i = 0; i < 3; i++) {
+      const t = (game.time * 0.5 + i / 3) % 1;
+      goalG.circle(g0.x, g0.y, 18 + t * 48).stroke({ width: 2.4 * (1 - t) + 0.4, color: 0xffd98a, alpha: 0.5 * (1 - t) });
+    }
   }
 
   function drawPlankton() {
@@ -1934,6 +1939,11 @@ export function createRenderer(PIXI, game, app) {
       }
       powerG.closePath().stroke({ width: 2.5, color: col, alpha: 0.95 });
       powerG.circle(p.x, p.y, 3).fill({ color: 0xffffff, alpha: 0.85 });
+      // pulsing rings — one shared draw, so identical in every act
+      for (let i = 0; i < 2; i++) {
+        const t = (game.time * 0.7 + p.ph + i / 2) % 1;
+        powerG.circle(p.x, p.y, 13 + t * 24).stroke({ width: 2.6 * (1 - t) + 0.5, color: col, alpha: 0.85 * (1 - t) });
+      }
     }
   }
 
@@ -2291,6 +2301,11 @@ export function createRenderer(PIXI, game, app) {
         return [cx + xr * scl, cy + yr * scl];
       };
       glow(TEX_SOFT, cx, cy, mb.r * 2.2, glw, 0.4 * alpha);
+      // pulsing rings in the boss's own color — one shared draw for every mini-boss
+      for (let i = 0; i < 3; i++) {
+        const rt = (t * 0.45 + (mb.seed || 0) + i / 3) % 1;
+        miniG.circle(cx, cy, mb.r + 8 + rt * 44).stroke({ width: 2.2 * (1 - rt) + 0.4, color: glw, alpha: 0.55 * (1 - rt) * alpha });
+      }
       try { if (drawMB(mb, t, scl, alpha, col, glw, P)) continue; } catch (e) { /* vector fallback */ }
       if (mb.kind === 'crab') {
         for (let s = -1; s <= 1; s += 2) for (let i = 0; i < 3; i++) {
@@ -3126,7 +3141,8 @@ export function createRenderer(PIXI, game, app) {
   function drawHUD() {
     hudG.clear();
     const w = W(), h = H();
-    const u = Math.max(1, Math.min(w, h) / 700);
+    const u = Math.min(w, h) / 700;
+    const touch = typeof document !== 'undefined' && document.body.classList.contains('touch');
     hudLayer.scale.set(1);
     hudLayer.position.set(0, 0);
     const sw = w / u, sh = h / u;
@@ -3157,12 +3173,14 @@ export function createRenderer(PIXI, game, app) {
       cxp = bx - 6;
     }
     txt('SHIFT to shift form', sw - 18, 40, '500 10px ui-monospace, Menlo, monospace', 'rgba(170,205,235,0.5)', 'right', 1);
-    // ability cooldown
+    // ability cooldown — on touch the bottom-left is the joystick, so park it top-left
     const cd = clamp(game.cooldown / 1.0, 0, 1);
-    hudG.roundRect(18, sh - 30, 120, 5, 3).fill({ color: 0xffffff, alpha: 0.08 });
-    hudG.roundRect(18, sh - 30, 120 * (1 - cd), 5, 3).fill({ color: hexInt(game.form ? game.form.glow : '#5ef2c8'), alpha: 0.85 });
+    const dashBarY = touch ? 78 : sh - 30;
+    const dashLblY = touch ? 68 : sh - 40;
+    hudG.roundRect(18, dashBarY, 120, 5, 3).fill({ color: 0xffffff, alpha: 0.08 });
+    hudG.roundRect(18, dashBarY, 120 * (1 - cd), 5, 3).fill({ color: hexInt(game.form ? game.form.glow : '#5ef2c8'), alpha: 0.85 });
     txt((game.form ? game.form.abilityName : '') + (game.form && game.form.ability === 'flare' ? ' (2 sparks)' : ''),
-      18, sh - 40, '700 11px ui-monospace, Menlo, monospace', cd > 0 ? 'rgba(150,185,215,0.4)' : (game.form ? game.form.glow : '#5ef2c8'), 'left', 1);
+      18, dashLblY, '700 11px ui-monospace, Menlo, monospace', cd > 0 ? 'rgba(150,185,215,0.4)' : (game.form ? game.form.glow : '#5ef2c8'), 'left', 1);
     // boss / miniboss bar
     {
       let hb = null, hlabel = '', hcol = '#ff8fa3';
@@ -3188,19 +3206,21 @@ export function createRenderer(PIXI, game, app) {
       hudG.circle(30, 62, 5).fill({ color: hexInt(pc), alpha: 0.9 });
       txt(label, 40, 62, '700 12px ui-monospace, Menlo, monospace', pc, 'left', 1);
     }
-    // hint + msg
+    // hint + msg — on touch the bottom is the button cluster, so lift them below the top bar
+    const hintY = touch ? 96 : sh - 24;
+    const msgY = touch ? 114 : sh - 60;
     if (game.state === 'play' && game.time - game.startedAt < 9) {
-      txt(game.hint, sw / 2, sh - 24, '500 12px ui-monospace, Menlo, monospace', 'rgba(200,230,255,1)', 'center', clamp(9 - (game.time - game.startedAt), 0, 1) * 0.7);
+      txt(game.hint, sw / 2, hintY, '500 12px ui-monospace, Menlo, monospace', 'rgba(200,230,255,1)', 'center', clamp(9 - (game.time - game.startedAt), 0, 1) * 0.7);
     }
     if (game.msg) {
-      txt(game.msg.text, sw / 2, sh - 60, '600 13px ui-monospace, Menlo, monospace', 'rgba(255,200,140,1)', 'center', clamp(1 - game.msg.t / 2.2, 0, 1));
+      txt(game.msg.text, sw / 2, msgY, '600 13px ui-monospace, Menlo, monospace', 'rgba(255,200,140,1)', 'center', clamp(1 - game.msg.t / 2.2, 0, 1));
     }
   }
 
   // ---- overlays ----
   function overlayBase() {
     const w = W(), h = H();
-    const u = Math.max(1, Math.min(w, h) / 700);
+    const u = Math.min(w, h) / 700;
     hudLayer.scale.set(u);
     return { w: w / u, h: h / u };
   }
@@ -3228,7 +3248,8 @@ export function createRenderer(PIXI, game, app) {
     });
     const pulse = 0.55 + 0.45 * Math.sin(game.time * 2.4);
     txt('press any key · tap · or press A', w / 2, h * 0.86, '600 16px ui-monospace, Menlo, monospace', 'rgba(220,245,255,1)', 'center', pulse);
-    txt('WASD / ARROWS swim · SHIFT shift form · R restart · M mute', w / 2, h * 0.92, '500 11px ui-monospace, Menlo, monospace', 'rgba(150,185,215,0.45)', 'center', 1);
+    const touchT = typeof document !== 'undefined' && document.body.classList.contains('touch');
+    txt(touchT ? 'joystick to swim · tap the water to aim & fire' : 'WASD / ARROWS swim · SHIFT shift form · R restart · M mute', w / 2, h * 0.92, '500 11px ui-monospace, Menlo, monospace', 'rgba(150,185,215,0.45)', 'center', 1);
   }
 
   function drawActCard() {

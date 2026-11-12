@@ -1744,6 +1744,13 @@ class Game {
     }
     ctx.strokeStyle = 'rgba(255,240,200,0.85)'; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.arc(g0.x, g0.y, 15 + pu * 3, 0, 7); ctx.stroke();
+    // pulsing beacon rings — one shared draw, so identical in every act
+    for (let i = 0; i < 3; i++) {
+      const t = (this.time * 0.5 + i / 3) % 1;
+      ctx.strokeStyle = `rgba(255,217,138,${0.5 * (1 - t)})`;
+      ctx.lineWidth = 2.4 * (1 - t) + 0.4;
+      ctx.beginPath(); ctx.arc(g0.x, g0.y, 18 + t * 48, 0, 7); ctx.stroke();
+    }
     ctx.restore();
   }
 
@@ -2000,6 +2007,13 @@ class Game {
       for (let i = 0; i < 6; i++) { const a = (i / 6) * 7; const rr = i % 2 ? 6 : 12; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
       ctx.closePath(); ctx.stroke();
       ctx.fillStyle = rgba('#ffffff', 0.85); ctx.beginPath(); ctx.arc(0, 0, 3, 0, 7); ctx.fill();
+      // pulsing rings — one shared draw, so identical in every act
+      for (let i = 0; i < 2; i++) {
+        const t = (this.time * 0.7 + p.ph + i / 2) % 1;
+        ctx.strokeStyle = rgba(col, 0.85 * (1 - t));
+        ctx.lineWidth = 2.6 * (1 - t) + 0.5;
+        ctx.beginPath(); ctx.arc(0, 0, 13 + t * 24, 0, 7); ctx.stroke();
+      }
       ctx.restore();
     }
   }
@@ -2157,6 +2171,15 @@ class Game {
       const g = ctx.createRadialGradient(0, 0, 0, 0, 0, mb.r * 2.2);
       g.addColorStop(0, rgba(mb.glow, 0.4 * alpha)); g.addColorStop(1, rgba(mb.glow, 0));
       ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, mb.r * 2.2, 0, 7); ctx.fill();
+      ctx.restore();
+      // pulsing rings in the boss's own color — one shared draw for every mini-boss
+      ctx.save(); ctx.globalCompositeOperation = 'lighter';
+      for (let i = 0; i < 3; i++) {
+        const rt = (this.time * 0.45 + (mb.seed || 0) + i / 3) % 1;
+        ctx.strokeStyle = rgba(mb.glow, 0.55 * (1 - rt) * alpha);
+        ctx.lineWidth = 2.2 * (1 - rt) + 0.4;
+        ctx.beginPath(); ctx.arc(0, 0, mb.r + 8 + rt * 44, 0, 7); ctx.stroke();
+      }
       ctx.restore();
 
       if (mb.kind === 'crab') {
@@ -2889,7 +2912,7 @@ class Game {
   drawHUD(s) {
     const ctx = this.ctx;
     const W = this.cv.width, H = this.cv.height;
-    const u = Math.max(1, Math.min(W, H) / 700);
+    const u = Math.min(W, H) / 700;
     ctx.save();
     ctx.scale(u, u);
     const w = W / u, h = H / u;
@@ -3221,7 +3244,7 @@ if (window.matchMedia && matchMedia('(pointer: coarse)').matches) {
       if (game.state !== 'play') { game.tap(); return; }
       const act = b.dataset.act;
       if (act === 'form') game.cycleForm(1);
-      else if (act === 'fire') { game.firing = true; game.aim = Math.atan2(game.vy, game.vx); }
+      else if (act === 'fire') game.firing = true; // aim comes from the last canvas tap / mouse
       else game.ability();
     });
     const stopFire = (e) => { if (b.dataset.act === 'fire') game.firing = false; };
